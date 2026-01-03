@@ -42,11 +42,17 @@ O projeto foi concebido para ser escalável, seguro e preparado para futuras int
 
 ### Passos para execução
 
-1. Acesse a pasta do projeto:
-   ```bash
-   cd taro-luminar-api
-📂 Funcionalidades Planejadas
 
+   cd taro-luminar-api
+Instale as dependências:
+
+
+npm install
+Inicie a aplicação:
+
+
+node index.js
+📂 Funcionalidades Planejadas
 Cadastro de clientes
 
 Registro de consultas de tarô
@@ -60,24 +66,30 @@ Integração com meios de pagamento
 Autenticação de usuários
 
 💼 Contexto Comercial
-
 O Taro Luminar API possui finalidade comercial, sendo destinado à oferta real de serviços de consultas de tarô online.
 O projeto foi estruturado para operar como um produto digital, com possibilidade de expansão e integração com outras plataformas.
 
 📌 Status do Projeto
-
 Projeto em desenvolvimento.
 
 ✍️ Autoria
-
 Projeto desenvolvido para fins comerciais.
 
----
-
-### ✅ Resultado final no GitHub
-- Títulos grandes
-- Seções bem separadas
-- Código formatado
-- Aparência profissional (nível faculdade / mercado)
+📄 Licença
+Este projeto possui finalidade comercial.
+A licença será definida conforme a estratégia do negócio.
 
 
+
+## ✅ Como confirmar que agora está certo
+
+Depois de salvar no GitHub:
+
+- O texto **não fica todo cinza**
+- Os comandos aparecem em **caixas separadas**
+- Os títulos aparecem grandes
+- As listas aparecem com marcadores
+
+Se aparecer assim, **está 100% correto e profissional**.
+
+Se quiser, posso ajudar no **próximo passo do projeto** (API, rotas, Express, etc.).
