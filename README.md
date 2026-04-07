@@ -81,15 +81,3 @@ A licença será definida conforme a estratégia do negócio.
 
 
 
-## ✅ Como confirmar que agora está certo
-
-Depois de salvar no GitHub:
-
-- O texto **não fica todo cinza**
-- Os comandos aparecem em **caixas separadas**
-- Os títulos aparecem grandes
-- As listas aparecem com marcadores
-
-Se aparecer assim, **está 100% correto e profissional**.
-
-Se quiser, posso ajudar no **próximo passo do projeto** (API, rotas, Express, etc.).
