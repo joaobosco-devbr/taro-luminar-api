@@ -30,6 +30,11 @@ function registerUser({ name, email }) {
   return user;
 }
 
+function getUserByEmail(email) {
+  const users = getUsers();
+  return users.find(u => u.email === email) || null;
+}
+
 function addCredit(email, amount = 1) {
   const users = getUsers();
   const user = users.find(u => u.email === email);
@@ -56,7 +61,7 @@ function consumeCredit(email) {
 
 module.exports = {
   registerUser,
+  getUserByEmail,
   addCredit,
   consumeCredit
 };
-

@@ -20,7 +20,12 @@ async function createPayment({ email }) {
   return payment;
 }
 
-module.exports = {
-  createPayment
-};
+async function getPaymentById(paymentId) {
+  const payment = await paymentClient.get({ id: paymentId });
+  return payment;
+}
 
+module.exports = {
+  createPayment,
+  getPaymentById
+};
