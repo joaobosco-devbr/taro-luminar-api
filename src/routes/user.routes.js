@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const userService = require('../services/user.service');
 
+// Registrar usuário
 router.post('/register', (req, res) => {
   const { name, email } = req.body;
 
@@ -11,14 +12,30 @@ router.post('/register', (req, res) => {
 
   const user = userService.registerUser({ name, email });
 
-  res.json({
+  return res.status(201).json({
     message: 'Usuário registrado com sucesso',
     user: {
       name: user.name,
-      email: user.email
+      email: user.email,
+      credits: user.credits
     }
   });
 });
 
-module.exports = router;
+// Consultar saldo de créditos
+router.get('/:email', (req, res) => {
+  const { email } = req.params;
+  const user = userService.getUserByEmail(email);
 
+  if (!user) {
+    return res.status(404).json({ error: 'Usuário não encontrado' });
+  }
+
+  return res.json({
+    name: user.name,
+    email: user.email,
+    credits: user.credits
+  });
+});
+
+module.exports = router;
