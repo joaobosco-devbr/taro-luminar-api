@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: taro-luminar-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: taro-luminar-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_FILE
+        value: /app/data/app.sqlite
+      - key: PAYMENT_WEBHOOK_MAX_RETRIES
+        value: 3
+      - key: PAYMENT_WEBHOOK_RETRY_DELAY_MS
+        value: 250
+      - key: API_KEY
+        sync: false
+      - key: MP_ACCESS_TOKEN_TEST
+        sync: false

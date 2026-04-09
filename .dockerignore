@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+.vs
+coverage
+test
+*.sqlite
+src/storage/*.sqlite
+no teste e organizaçãoq
+node index.js
+olate test storagegit push

@@ -2,16 +2,19 @@
   {
     "name": "The Sun",
     "type": "major",
+    "answer": "Sim",
     "meaning": "success, positivity, happiness"
   },
   {
     "name": "The Tower",
     "type": "major",
+    "answer": "Não",
     "meaning": "sudden change, disruption"
   },
   {
     "name": "The Lovers",
     "type": "major",
+    "answer": "Sim",
     "meaning": "love, harmony, relationships"
   }
 ]

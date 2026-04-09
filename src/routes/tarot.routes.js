@@ -3,30 +3,27 @@ const router = express.Router();
 
 const tarotService = require('../services/tarot.service');
 const userService = require('../services/user.service');
+const { validate } = require('../middlewares/validate');
+const { tarotReadingSchema } = require('../validation/schemas');
 
-router.post('/sim-ou-nao', (req, res) => {
+router.post('/sim-ou-nao', validate(tarotReadingSchema), (req, res) => {
   const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ error: 'E-mail é obrigatório' });
-  }
 
   const success = userService.consumeCredit(email);
 
   if (!success) {
     return res.status(403).json({
-      error: 'Pagamento necessário para acessar a leitura.'
+      error: 'Pagamento necessario para acessar a leitura.'
     });
   }
 
   const resultado = tarotService.getTarotSimOuNao();
 
   res.json({
-    produto: 'Tarô Luminar',
-    tipo: 'Tarot Sim ou Não',
+    produto: 'Taro Luminar',
+    tipo: 'Taro Sim ou Nao',
     ...resultado
   });
 });
 
 module.exports = router;
-

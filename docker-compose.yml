@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taro-luminar-api
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_KEY: ${API_KEY}
+      MP_ACCESS_TOKEN_TEST: ${MP_ACCESS_TOKEN_TEST}
+      PAYMENT_WEBHOOK_MAX_RETRIES: ${PAYMENT_WEBHOOK_MAX_RETRIES:-3}
+      PAYMENT_WEBHOOK_RETRY_DELAY_MS: ${PAYMENT_WEBHOOK_RETRY_DELAY_MS:-250}
+      DATABASE_FILE: /app/data/app.sqlite
+    volumes:
+      - taro_luminar_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  taro_luminar_data:

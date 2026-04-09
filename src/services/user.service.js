@@ -1,62 +1,104 @@
-const fs = require('fs');
-const path = require('path');
+const { db } = require('../config/database');
 
-const usersFile = path.join(__dirname, '../storage/users.json');
-
-function getUsers() {
-  return JSON.parse(fs.readFileSync(usersFile));
-}
-
-function saveUsers(users) {
-  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
-}
-
-function registerUser({ name, email }) {
-  const users = getUsers();
-
-  let user = users.find(u => u.email === email);
-  if (user) return user;
-
-  user = {
-    id: Date.now(),
-    name,
-    email,
-    credits: 0
-  };
-
-  users.push(user);
-  saveUsers(users);
-
-  return user;
+function now() {
+  return new Date().toISOString();
 }
 
 function getUserByEmail(email) {
-  const users = getUsers();
-  return users.find(u => u.email === email) || null;
+  return db.prepare(
+    `SELECT id, name, email, credits
+     FROM users
+     WHERE email = ?`
+  ).get(email) || null;
 }
 
-function addCredit(email, amount = 1) {
-  const users = getUsers();
-  const user = users.find(u => u.email === email);
+function registerUser({ name, email }) {
+  const timestamp = now();
 
-  if (!user) return null;
+  const result = db.prepare(
+    `INSERT OR IGNORE INTO users (name, email, credits, created_at, updated_at)
+     VALUES (?, ?, 0, ?, ?)`
+  ).run(name, email, timestamp, timestamp);
 
-  user.credits += amount;
-  saveUsers(users);
+  return {
+    created: result.changes > 0,
+    user: getUserByEmail(email)
+  };
+}
 
-  return user;
+function addCredit(email, amount = 1, options = {}) {
+  const timestamp = now();
+  const user = getUserByEmail(email);
+
+  if (!user) {
+    return null;
+  }
+
+  db.exec('BEGIN IMMEDIATE');
+
+  try {
+    db.prepare(
+      `UPDATE users
+       SET credits = credits + ?,
+           updated_at = ?
+       WHERE email = ?`
+    ).run(amount, timestamp, email);
+
+    db.prepare(
+      `INSERT INTO credits_ledger (user_id, payment_id, delta, reason, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(
+      user.id,
+      options.paymentId || null,
+      amount,
+      options.reason || 'manual_credit',
+      timestamp
+    );
+
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+
+  return getUserByEmail(email);
 }
 
 function consumeCredit(email) {
-  const users = getUsers();
-  const user = users.find(u => u.email === email);
+  const timestamp = now();
+  const user = getUserByEmail(email);
 
-  if (!user || user.credits <= 0) return false;
+  if (!user) {
+    return false;
+  }
 
-  user.credits -= 1;
-  saveUsers(users);
+  db.exec('BEGIN IMMEDIATE');
 
-  return true;
+  try {
+    const result = db.prepare(
+      `UPDATE users
+       SET credits = credits - 1,
+           updated_at = ?
+       WHERE email = ?
+         AND credits > 0`
+    ).run(timestamp, email);
+
+    if (result.changes === 0) {
+      db.exec('ROLLBACK');
+      return false;
+    }
+
+    db.prepare(
+      `INSERT INTO credits_ledger (user_id, payment_id, delta, reason, created_at)
+       VALUES (?, NULL, -1, 'tarot_reading', ?)`
+    ).run(user.id, timestamp);
+
+    db.exec('COMMIT');
+    return true;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 module.exports = {

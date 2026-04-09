@@ -1,19 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const userService = require('../services/user.service');
+const { validate } = require('../middlewares/validate');
+const { registerUserSchema, emailParamSchema } = require('../validation/schemas');
 
-// Registrar usuário
-router.post('/register', (req, res) => {
+// Registrar usuario
+router.post('/register', validate(registerUserSchema), (req, res) => {
   const { name, email } = req.body;
 
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Nome e e-mail são obrigatórios' });
+  const { created, user } = userService.registerUser({ name, email });
+
+  if (!created) {
+    return res.status(409).json({ error: 'Usuario ja cadastrado' });
   }
 
-  const user = userService.registerUser({ name, email });
-
   return res.status(201).json({
-    message: 'Usuário registrado com sucesso',
+    message: 'Usuario registrado com sucesso',
     user: {
       name: user.name,
       email: user.email,
@@ -22,13 +24,13 @@ router.post('/register', (req, res) => {
   });
 });
 
-// Consultar saldo de créditos
-router.get('/:email', (req, res) => {
+// Consultar saldo de creditos
+router.get('/:email', validate(emailParamSchema, 'params'), (req, res) => {
   const { email } = req.params;
   const user = userService.getUserByEmail(email);
 
   if (!user) {
-    return res.status(404).json({ error: 'Usuário não encontrado' });
+    return res.status(404).json({ error: 'Usuario nao encontrado' });
   }
 
   return res.json({

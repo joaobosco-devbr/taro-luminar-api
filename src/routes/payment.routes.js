@@ -1,19 +1,52 @@
 const express = require('express');
 const router = express.Router();
 
+const { validate } = require('../middlewares/validate');
 const paymentService = require('../services/payment.service');
-const userService = require('../services/user.service');
+const logger = require('../utils/logger');
+const metrics = require('../utils/metrics');
+const { paymentCreateSchema, webhookSchema } = require('../validation/schemas');
 
-// Criar pagamento PIX
-router.post('/create', async (req, res) => {
-  const { email } = req.body;
+function getErrorMessage(error) {
+  return error?.message || String(error);
+}
 
-  if (!email) {
-    return res.status(400).json({ error: 'E-mail é obrigatório' });
+function logWebhookError(message, paymentId, error) {
+  logger.error('payment.webhook.error', {
+    message,
+    paymentId: String(paymentId),
+    error: getErrorMessage(error)
+  });
+}
+
+function persistWebhookFailure(paymentId, error) {
+  try {
+    paymentService.recordWebhookError(paymentId, error);
+  } catch (recordError) {
+    logWebhookError('Falha ao registrar erro do webhook', paymentId, recordError);
   }
 
   try {
+    paymentService.releasePaymentClaim(paymentId);
+  } catch (releaseError) {
+    logWebhookError('Falha ao liberar processamento do pagamento apos erro', paymentId, releaseError);
+  }
+}
+
+// Criar pagamento PIX
+router.post('/create', validate(paymentCreateSchema), async (req, res) => {
+  const { email } = req.body;
+  metrics.incrementPaymentMetric('createRequests');
+
+  try {
     const payment = await paymentService.createPayment({ email });
+    metrics.incrementPaymentMetric('createSuccess');
+
+    logger.info('payment.create.response', {
+      paymentId: String(payment.id),
+      email,
+      status: payment.status
+    });
 
     return res.json({
       id: payment.id,
@@ -23,7 +56,11 @@ router.post('/create', async (req, res) => {
         payment.point_of_interaction?.transaction_data?.qr_code_base64
     });
   } catch (error) {
-    console.error('Erro ao criar pagamento:', error);
+    metrics.incrementPaymentMetric('createErrors');
+    logger.error('payment.create.error', {
+      email,
+      error: getErrorMessage(error)
+    });
     return res.status(500).json({
       error: 'Erro ao criar pagamento',
       details: error?.message || error
@@ -31,41 +68,89 @@ router.post('/create', async (req, res) => {
   }
 });
 
-// Webhook do Mercado Pago — chamado automaticamente quando o PIX é pago
-router.post('/webhook', async (req, res) => {
+// Webhook do Mercado Pago chamado automaticamente quando o PIX e pago
+router.post('/webhook', validate(webhookSchema), async (req, res) => {
   const { type, data } = req.body;
+  const paymentId = data?.id ? String(data.id) : null;
+  metrics.incrementPaymentMetric('webhookReceived');
 
-  // MP envia notificações de vários tipos — só processamos pagamentos aprovados
-  if (type !== 'payment') {
+  if (type !== 'payment' || !paymentId) {
     return res.sendStatus(200);
   }
 
   try {
-    const payment = await paymentService.getPaymentById(data.id);
+    const trackedPayment = paymentService.getTrackedPaymentById(paymentId);
+
+    if (!trackedPayment) {
+      metrics.incrementPaymentMetric('webhookIgnored');
+      logger.warn('payment.webhook.ignored_untracked', {
+        paymentId: String(paymentId)
+      });
+      return res.sendStatus(200);
+    }
+
+    if (trackedPayment.credited) {
+      metrics.incrementPaymentMetric('webhookIgnored');
+      logger.info('payment.webhook.ignored_already_credited', {
+        paymentId: String(paymentId)
+      });
+      return res.sendStatus(200);
+    }
+
+    const claimedPayment = paymentService.claimPaymentForCredit(paymentId);
+
+    if (!claimedPayment) {
+      metrics.incrementPaymentMetric('webhookIgnored');
+      logger.info('payment.webhook.ignored_unclaimable', {
+        paymentId: String(paymentId)
+      });
+      return res.sendStatus(200);
+    }
+
+    const { payment, attempts } = await paymentService.getPaymentByIdWithRetry(paymentId);
+    paymentService.markPaymentStatus(paymentId, payment.status);
 
     if (payment.status !== 'approved') {
+      paymentService.releasePaymentClaim(paymentId);
+      metrics.incrementPaymentMetric('webhookIgnored');
+      logger.info('payment.webhook.non_approved', {
+        paymentId: String(paymentId),
+        status: payment.status,
+        mercadoPagoAttempts: attempts
+      });
       return res.sendStatus(200);
     }
 
     const email = payment.payer?.email;
+    const isValidAmount = Number(payment.transaction_amount) === paymentService.CREDIT_PRICE;
+    const isTrackedEmail = email === claimedPayment.email;
 
-    if (!email) {
-      console.warn('Webhook: pagamento aprovado sem e-mail do pagador', data.id);
+    if (!email || !isTrackedEmail || !isValidAmount) {
+      const inconsistencyError = new Error('Pagamento rejeitado por inconsistenca de dados');
+      persistWebhookFailure(paymentId, inconsistencyError);
+      metrics.incrementPaymentMetric('webhookRejected');
+      logger.warn('payment.webhook.rejected_inconsistent', {
+        paymentId,
+        email,
+        trackedEmail: claimedPayment.email,
+        amount: payment.transaction_amount
+      });
       return res.sendStatus(200);
     }
 
-    const user = userService.addCredit(email);
+    paymentService.applyApprovedPaymentCredit(paymentId, email);
+    metrics.incrementPaymentMetric('webhookApproved');
 
-    if (!user) {
-      // Usuário não cadastrado ainda — registra automaticamente com 1 crédito
-      userService.registerUser({ name: email, email });
-      userService.addCredit(email);
-    }
-
-    console.log(`Crédito adicionado para ${email} via pagamento ${data.id}`);
+    logger.info('payment.webhook.credit_applied', {
+      paymentId: String(paymentId),
+      email,
+      mercadoPagoAttempts: attempts
+    });
     return res.sendStatus(200);
   } catch (error) {
-    console.error('Erro ao processar webhook:', error);
+    persistWebhookFailure(paymentId, error);
+    metrics.incrementPaymentMetric('webhookErrors');
+    logWebhookError('Erro ao processar webhook', paymentId, error);
     return res.sendStatus(500);
   }
 });

@@ -1,5 +1,9 @@
 # Node
 node_modules/
+.vs/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Environment variables
 .env
